@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MessageCategory {
+  QUESTION
+  COMPLAINT
+  PRAISE
+  OTHER
+}
+
+enum MessageStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+}
+
+model Message {
+  id            String          @id @default(cuid())
+  customerName  String?
+  customerEmail String?
+  content       String
+  category      MessageCategory
+  status        MessageStatus   @default(PENDING)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  responses     Response[]
+}
+
+model Response {
+  id          String    @id @default(cuid())
+  messageId   String
+  draftedText String
+  finalText   String?
+  approvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  message     Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}

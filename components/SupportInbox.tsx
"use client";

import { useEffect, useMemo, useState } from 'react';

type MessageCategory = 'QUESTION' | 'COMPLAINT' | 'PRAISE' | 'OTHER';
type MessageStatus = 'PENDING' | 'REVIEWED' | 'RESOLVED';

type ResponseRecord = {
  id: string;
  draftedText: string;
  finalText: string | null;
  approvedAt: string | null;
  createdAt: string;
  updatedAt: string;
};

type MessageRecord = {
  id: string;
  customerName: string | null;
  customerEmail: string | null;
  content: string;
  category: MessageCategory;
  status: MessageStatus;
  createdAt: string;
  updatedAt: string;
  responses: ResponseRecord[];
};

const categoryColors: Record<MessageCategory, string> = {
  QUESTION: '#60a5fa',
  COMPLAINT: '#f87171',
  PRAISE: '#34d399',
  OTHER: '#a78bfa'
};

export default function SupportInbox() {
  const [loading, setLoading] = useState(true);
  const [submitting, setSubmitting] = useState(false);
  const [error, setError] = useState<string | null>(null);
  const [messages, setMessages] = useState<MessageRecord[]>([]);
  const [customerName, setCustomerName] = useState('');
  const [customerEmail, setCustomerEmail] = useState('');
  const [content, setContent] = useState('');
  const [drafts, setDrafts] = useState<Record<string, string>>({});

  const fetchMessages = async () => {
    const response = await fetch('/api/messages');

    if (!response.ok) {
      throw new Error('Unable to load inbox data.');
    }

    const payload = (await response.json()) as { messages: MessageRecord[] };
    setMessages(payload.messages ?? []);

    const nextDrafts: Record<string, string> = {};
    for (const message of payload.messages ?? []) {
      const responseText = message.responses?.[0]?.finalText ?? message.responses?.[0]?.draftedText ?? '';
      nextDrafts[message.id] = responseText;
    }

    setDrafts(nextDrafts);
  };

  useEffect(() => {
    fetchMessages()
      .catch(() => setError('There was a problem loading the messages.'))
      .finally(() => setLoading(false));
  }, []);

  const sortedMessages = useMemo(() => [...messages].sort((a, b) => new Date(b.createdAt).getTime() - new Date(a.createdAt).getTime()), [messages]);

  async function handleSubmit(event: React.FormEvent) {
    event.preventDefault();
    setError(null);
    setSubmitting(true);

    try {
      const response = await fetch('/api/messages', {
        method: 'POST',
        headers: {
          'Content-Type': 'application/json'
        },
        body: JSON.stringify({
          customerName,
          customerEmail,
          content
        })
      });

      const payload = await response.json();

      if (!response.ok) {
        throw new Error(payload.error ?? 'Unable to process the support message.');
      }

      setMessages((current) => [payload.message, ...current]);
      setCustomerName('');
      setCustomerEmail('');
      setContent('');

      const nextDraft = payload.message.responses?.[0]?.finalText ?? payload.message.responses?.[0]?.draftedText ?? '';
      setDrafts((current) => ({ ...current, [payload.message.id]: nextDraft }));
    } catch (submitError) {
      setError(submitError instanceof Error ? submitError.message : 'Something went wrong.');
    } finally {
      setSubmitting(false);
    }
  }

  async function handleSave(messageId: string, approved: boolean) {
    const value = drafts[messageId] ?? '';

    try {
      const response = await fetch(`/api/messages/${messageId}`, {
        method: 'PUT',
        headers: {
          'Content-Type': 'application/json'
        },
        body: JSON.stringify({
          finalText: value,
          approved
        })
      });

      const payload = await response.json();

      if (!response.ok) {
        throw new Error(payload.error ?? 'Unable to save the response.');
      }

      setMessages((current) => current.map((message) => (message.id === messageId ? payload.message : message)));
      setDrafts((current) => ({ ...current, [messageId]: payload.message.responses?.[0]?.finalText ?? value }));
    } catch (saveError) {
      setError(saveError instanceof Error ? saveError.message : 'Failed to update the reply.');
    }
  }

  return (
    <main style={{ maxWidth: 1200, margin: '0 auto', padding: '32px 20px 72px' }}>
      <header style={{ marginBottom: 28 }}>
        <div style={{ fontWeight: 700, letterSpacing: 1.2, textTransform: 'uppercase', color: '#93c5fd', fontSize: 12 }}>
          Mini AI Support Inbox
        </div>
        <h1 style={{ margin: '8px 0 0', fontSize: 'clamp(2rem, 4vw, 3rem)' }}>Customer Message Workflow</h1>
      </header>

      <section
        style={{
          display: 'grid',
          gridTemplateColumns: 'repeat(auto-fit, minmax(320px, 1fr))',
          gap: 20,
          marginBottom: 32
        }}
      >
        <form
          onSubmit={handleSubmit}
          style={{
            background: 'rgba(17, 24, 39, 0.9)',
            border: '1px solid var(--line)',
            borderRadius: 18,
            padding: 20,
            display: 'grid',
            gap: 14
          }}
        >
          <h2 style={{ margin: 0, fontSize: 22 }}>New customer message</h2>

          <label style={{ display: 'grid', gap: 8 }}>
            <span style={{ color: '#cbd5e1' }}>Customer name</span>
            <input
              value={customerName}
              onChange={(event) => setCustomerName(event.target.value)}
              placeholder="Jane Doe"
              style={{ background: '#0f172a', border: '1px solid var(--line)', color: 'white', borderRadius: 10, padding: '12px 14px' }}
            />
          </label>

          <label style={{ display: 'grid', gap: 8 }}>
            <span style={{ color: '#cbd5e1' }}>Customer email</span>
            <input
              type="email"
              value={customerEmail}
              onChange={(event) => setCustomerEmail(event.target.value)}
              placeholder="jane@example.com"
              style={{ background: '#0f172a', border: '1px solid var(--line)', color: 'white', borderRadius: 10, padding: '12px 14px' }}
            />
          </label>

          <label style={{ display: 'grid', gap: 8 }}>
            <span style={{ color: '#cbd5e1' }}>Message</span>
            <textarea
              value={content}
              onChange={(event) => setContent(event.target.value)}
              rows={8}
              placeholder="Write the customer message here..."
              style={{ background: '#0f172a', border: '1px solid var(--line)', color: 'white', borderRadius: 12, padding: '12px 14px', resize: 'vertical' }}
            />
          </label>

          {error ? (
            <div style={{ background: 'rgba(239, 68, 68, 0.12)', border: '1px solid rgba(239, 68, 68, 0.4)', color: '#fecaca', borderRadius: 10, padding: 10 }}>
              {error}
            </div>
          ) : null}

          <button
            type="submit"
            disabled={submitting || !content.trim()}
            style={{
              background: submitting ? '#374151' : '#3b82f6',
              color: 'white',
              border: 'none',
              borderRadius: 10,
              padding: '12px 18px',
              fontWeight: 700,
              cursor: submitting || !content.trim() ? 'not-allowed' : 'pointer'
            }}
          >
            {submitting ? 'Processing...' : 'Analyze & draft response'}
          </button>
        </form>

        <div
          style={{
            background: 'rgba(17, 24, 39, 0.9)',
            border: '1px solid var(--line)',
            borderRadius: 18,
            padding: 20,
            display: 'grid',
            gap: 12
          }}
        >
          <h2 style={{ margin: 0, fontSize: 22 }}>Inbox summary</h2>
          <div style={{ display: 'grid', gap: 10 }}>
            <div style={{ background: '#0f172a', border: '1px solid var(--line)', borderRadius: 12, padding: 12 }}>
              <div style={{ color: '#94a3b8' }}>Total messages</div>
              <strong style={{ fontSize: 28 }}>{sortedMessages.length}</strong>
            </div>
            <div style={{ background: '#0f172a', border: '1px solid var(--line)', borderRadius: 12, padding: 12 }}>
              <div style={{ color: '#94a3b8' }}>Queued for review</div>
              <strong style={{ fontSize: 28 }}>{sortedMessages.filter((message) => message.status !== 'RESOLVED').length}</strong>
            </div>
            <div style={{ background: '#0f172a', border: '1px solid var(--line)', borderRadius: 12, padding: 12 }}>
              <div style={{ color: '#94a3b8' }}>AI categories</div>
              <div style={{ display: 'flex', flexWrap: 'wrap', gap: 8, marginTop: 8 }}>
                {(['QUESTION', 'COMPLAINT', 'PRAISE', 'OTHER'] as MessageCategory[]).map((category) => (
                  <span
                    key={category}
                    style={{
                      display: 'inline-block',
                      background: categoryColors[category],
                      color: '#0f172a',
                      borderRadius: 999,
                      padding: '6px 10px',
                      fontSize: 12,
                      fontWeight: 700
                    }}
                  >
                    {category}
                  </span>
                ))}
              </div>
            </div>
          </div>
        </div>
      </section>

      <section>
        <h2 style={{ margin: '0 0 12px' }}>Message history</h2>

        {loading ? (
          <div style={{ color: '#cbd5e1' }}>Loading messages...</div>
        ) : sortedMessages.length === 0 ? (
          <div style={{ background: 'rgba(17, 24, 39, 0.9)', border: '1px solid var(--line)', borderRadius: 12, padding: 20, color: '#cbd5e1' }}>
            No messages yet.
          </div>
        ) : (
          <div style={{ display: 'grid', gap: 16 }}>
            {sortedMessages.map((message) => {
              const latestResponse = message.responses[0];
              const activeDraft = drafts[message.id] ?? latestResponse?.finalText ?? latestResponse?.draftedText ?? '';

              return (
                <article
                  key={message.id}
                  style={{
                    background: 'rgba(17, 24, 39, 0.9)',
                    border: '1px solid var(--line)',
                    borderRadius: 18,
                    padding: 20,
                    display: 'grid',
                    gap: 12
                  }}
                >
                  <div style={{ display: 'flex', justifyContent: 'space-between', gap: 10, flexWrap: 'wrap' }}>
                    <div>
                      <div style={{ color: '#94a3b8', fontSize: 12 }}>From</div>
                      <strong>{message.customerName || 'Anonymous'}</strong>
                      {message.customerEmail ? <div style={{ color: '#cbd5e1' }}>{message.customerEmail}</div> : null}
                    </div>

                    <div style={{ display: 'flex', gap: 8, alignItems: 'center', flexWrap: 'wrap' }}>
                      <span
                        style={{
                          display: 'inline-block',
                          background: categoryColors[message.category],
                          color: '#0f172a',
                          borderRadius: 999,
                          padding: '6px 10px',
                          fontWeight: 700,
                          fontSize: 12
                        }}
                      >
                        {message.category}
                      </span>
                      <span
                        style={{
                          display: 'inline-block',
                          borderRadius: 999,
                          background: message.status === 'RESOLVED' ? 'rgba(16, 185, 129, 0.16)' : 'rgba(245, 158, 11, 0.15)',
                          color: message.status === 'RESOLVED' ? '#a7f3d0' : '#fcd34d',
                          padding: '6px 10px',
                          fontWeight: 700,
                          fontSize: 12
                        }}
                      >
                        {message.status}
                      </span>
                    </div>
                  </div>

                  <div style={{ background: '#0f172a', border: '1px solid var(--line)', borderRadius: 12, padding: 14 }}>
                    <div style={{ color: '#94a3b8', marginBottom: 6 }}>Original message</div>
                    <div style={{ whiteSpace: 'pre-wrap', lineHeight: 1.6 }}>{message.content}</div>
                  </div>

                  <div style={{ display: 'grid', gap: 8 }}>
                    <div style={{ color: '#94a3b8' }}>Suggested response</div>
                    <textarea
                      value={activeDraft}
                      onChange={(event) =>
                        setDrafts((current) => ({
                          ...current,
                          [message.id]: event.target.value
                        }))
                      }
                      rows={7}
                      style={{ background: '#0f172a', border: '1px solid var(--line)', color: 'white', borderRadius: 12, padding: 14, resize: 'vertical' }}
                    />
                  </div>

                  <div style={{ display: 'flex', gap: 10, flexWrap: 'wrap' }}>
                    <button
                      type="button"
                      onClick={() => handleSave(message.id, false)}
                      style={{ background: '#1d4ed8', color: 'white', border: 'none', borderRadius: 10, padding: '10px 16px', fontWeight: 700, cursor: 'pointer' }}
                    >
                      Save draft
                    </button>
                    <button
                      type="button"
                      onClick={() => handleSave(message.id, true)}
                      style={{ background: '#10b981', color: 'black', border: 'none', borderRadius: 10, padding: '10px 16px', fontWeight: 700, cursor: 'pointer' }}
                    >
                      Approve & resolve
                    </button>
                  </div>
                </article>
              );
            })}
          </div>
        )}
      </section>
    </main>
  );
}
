@@ -1,0 +1,98 @@
+import OpenAI from 'openai';
+
+export type SupportedCategory = 'QUESTION' | 'COMPLAINT' | 'PRAISE' | 'OTHER';
+
+const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+function heuristicCategory(content: string): SupportedCategory {
+  const value = content.toLowerCase();
+
+  if (/(refund|delay|bug|broken|late|issue|error|complaint|angry|disappointed|unhappy)/.test(value)) {
+    return 'COMPLAINT';
+  }
+
+  if (/(thanks|love|great|excellent|happy|amazing|satisfied|appreciate)/.test(value)) {
+    return 'PRAISE';
+  }
+
+  if (/(how|when|where|what|why|can|could|do|does|help|support)/.test(value)) {
+    return 'QUESTION';
+  }
+
+  return 'OTHER';
+}
+
+function heuristicReply(content: string): string {
+  const category = heuristicCategory(content);
+
+  if (category === 'COMPLAINT') {
+    return 'Hi, thanks for reaching out. I am sorry to hear about your issue. I have noted your feedback and our team will review it promptly. We appreciate the opportunity to improve and will follow up with a resolution as soon as possible.';
+  }
+
+  if (category === 'PRAISE') {
+    return 'Hi, thank you so much for your kind words. We are delighted to hear that you had a positive experience and we truly appreciate your support. We will continue to work hard to provide the same level of service.';
+  }
+
+  if (category === 'QUESTION') {
+    return 'Hi, thanks for your message. We are happy to help. Please allow us a little time to review your question and we will send a clear answer shortly.';
+  }
+
+  return 'Hi, thank you for getting in touch. We have received your message and will review it as part of our support workflow. We will reach out with any next steps if needed.';
+}
+
+export async function classifyAndDraft({ content }: { content: string }) {
+  if (!client) {
+    const category = heuristicCategory(content);
+    const reply = heuristicReply(content);
+
+    return {
+      category,
+      reply
+    };
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You classify customer support messages and draft a concise, professional response. Return valid JSON with keys: category and reply. Category must be one of: QUESTION, COMPLAINT, PRAISE, OTHER.'
+        },
+        {
+          role: 'user',
+          content: content
+        }
+      ]
+    });
+
+    const data = response.choices[0]?.message?.content;
+
+    if (!data) {
+      throw new Error('No response from AI model.');
+    }
+
+    const parsed = JSON.parse(data) as { category?: SupportedCategory; reply?: string };
+
+    if (!parsed.category || !parsed.reply) {
+      throw new Error('Invalid AI payload.');
+    }
+
+    return {
+      category: parsed.category,
+      reply: parsed.reply
+    };
+  } catch (error) {
+    console.error('AI classification failed, using fallback logic.', error);
+
+    const category = heuristicCategory(content);
+
+    return {
+      category,
+      reply: heuristicReply(content)
+    };
+  }
+}
