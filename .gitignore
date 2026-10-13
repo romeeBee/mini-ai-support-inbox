@@ -1,7 +1,9 @@
-name=.next
-name=dist
-name=.turbo
-name=node_modules
-name=.env.local
-name=.env
-name=.DS_Store
+.next
+out
+node_modules
+.env
+.env.local
+.env.*
+!.env.example
+.DS_Store
+npm-debug.log*
